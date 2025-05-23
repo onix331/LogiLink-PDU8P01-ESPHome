@@ -1,0 +1,318 @@
+esphome:
+  name: pdu1
+  on_boot: #In order for the relais to not switch to an unwanted state, wait for the boot to finish, then set boot_done to true
+    - priority: 250
+      then:
+        - globals.set:
+            id: boot_done
+            value: 'true'
+    - priority: -100 #This will recover the state of the outputs to what they were before a power loss
+      then:
+        - delay: 2s #Set delay so that not all outputs switch at the same time to prevent a surge
+        - lambda: |- #Toggle the output should it not match what it was before reboot
+            if (id(Output1_last_status) != id(relay1).state) { 
+            id(relay1).toggle();
+            }
+        - delay: 2s
+        - lambda: |-
+            if (id(Output2_last_status) != id(relay2).state) {
+            id(relay2).toggle();
+            }
+        - delay: 2s
+        - lambda: |-
+            if (id(Output3_last_status) != id(relay3).state) {
+            id(relay3).toggle();
+            }
+        - delay: 2s
+        - lambda: |-
+            if (id(Output4_last_status) != id(relay4).state) {
+            id(relay4).toggle();
+            }
+        - delay: 2s
+        - lambda: |-
+            if (id(Output5_last_status) != id(relay5).state) {
+            id(relay5).toggle();
+            }
+        - delay: 2s
+        - lambda: |-
+            if (id(Output6_last_status) != id(relay6).state) {
+            id(relay6).toggle();
+            }
+        - delay: 2s
+        - lambda: |-
+            if (id(Output7_last_status) != id(relay7).state) {
+            id(relay7).toggle();
+            }
+        - delay: 2s
+        - lambda: |-
+            if (id(Output8_last_status) != id(relay8).state) {
+            id(relay8).toggle();
+            }
+
+
+esp32: #This is just the board i used, check for your own hardware!
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+
+globals: #Bunch of global variable definitions
+  - id: Output1_last_status
+    type: int
+    restore_value: true
+    initial_value: '0'
+  - id: Output2_last_status
+    type: int
+    restore_value: true
+    initial_value: '0'
+  - id: Output3_last_status
+    type: int
+    restore_value: true
+    initial_value: '0'
+  - id: Output4_last_status
+    type: int
+    restore_value: true
+    initial_value: '0'
+  - id: Output5_last_status
+    type: int
+    restore_value: true
+    initial_value: '0'
+  - id: Output6_last_status
+    type: int
+    restore_value: true
+    initial_value: '0'
+  - id: Output7_last_status
+    type: int
+    restore_value: true
+    initial_value: '0'
+  - id: Output8_last_status
+    type: int
+    restore_value: true
+    initial_value: '0'
+  - id: boot_done
+    type: bool
+    restore_value: no #Do not restore this value, it will be set/reset on boot/runtime
+    initial_value: 'false'
+
+preferences:
+  flash_write_interval: 5min #Set this lower or higher according to your needs. Default: 5min. Means it will save the state of the outputs to flash all 5 minutes
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  reboot_timeout: 0s #This is needed so that the ESPHome device doesn't reboot/halt if there is no network connection for >15min
+
+web_server:
+  port: 80
+
+ota:
+  platform: esphome
+
+ethernet: #This may depend on the devboard/hardware you are running ESPHome on. If you are gonna use wifi only, you won't need this
+  type: W5500
+  mosi_pin: GPIO11
+  miso_pin: GPIO12
+  clk_pin: GPIO13
+  cs_pin: GPIO14
+  reset_pin: GPIO9
+  interrupt_pin: GPIO10
+  clock_speed: 25MHz
+
+substitutions: #These are calibration values, calculate them here: https://esphome.io/components/sensor/hlw8012.html
+  voltage_divider: "2157.894736842105"
+  current_resistor: "0.0023058355107627225"
+  current_multiply: "1.0086760626376137"
+
+
+button: #Just a button to restart the PDU from HomeAssistant, can be removed if unwanted
+  - platform: restart
+    name: "PDU 1 Restart"
+
+sensor:
+  - platform: hlw8012 #This was the IC i found in the PDU, may need to modify it for your device if it differs
+    sel_pin:
+      number: GPIO2 #These GPIOs are clarified in the readme
+      inverted: true #Was needed for my PDUs
+    cf_pin: GPIO1
+    cf1_pin: GPIO15
+    current_resistor: ${current_resistor}
+    voltage_divider: ${voltage_divider}
+    current:
+      name: "PDU 1 Current"
+      filters:
+        - multiply: ${current_multiply}
+    voltage:
+      name: "PDU 1 Voltage"
+    power:
+      name: "PDU 1 Power"
+    energy:
+      name: "PDU 1 Energy"
+    update_interval: 10s
+
+switch:
+  - platform: gpio
+    pin: GPIO48 #Again, these GPIOs are clarified in the readme
+    id: relay1
+    name: "PDU 1 Output 1"
+    on_turn_on:
+      then:
+        - globals.set: #When output gets turned on, set variable so that it can be remembered for next boot
+            id: Output1_last_status
+            value: '1'
+    on_turn_off:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(boot_done);' #Only set the variable if the boot is actually finished, otherwise it will set the variable to off each time it boots and prevent the output to recover to their last state
+            then:
+            - globals.set: #Reset the variable again, so that the output will stay off for next boot
+                id: Output1_last_status
+                value: '0'
+    restore_mode: DISABLED
+
+  - platform: gpio
+    pin: GPIO47
+    id: relay2
+    name: "PDU 1 Output 2"
+    on_turn_on:
+      then:
+        - globals.set:
+            id: Output2_last_status
+            value: '1'
+    on_turn_off:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(boot_done);'
+            then:
+            - globals.set:
+                id: Output2_last_status
+                value: '0'
+    restore_mode: DISABLED
+
+  - platform: gpio
+    pin: GPIO16
+    id: relay3
+    name: "PDU 1 Output 3"
+    on_turn_on:
+      then:
+        - globals.set:
+            id: Output3_last_status
+            value: '1'
+    on_turn_off:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(boot_done);'
+            then:
+            - globals.set:
+                id: Output3_last_status
+                value: '0'
+    restore_mode: DISABLED
+
+  - platform: gpio
+    pin: GPIO18
+    id: relay4
+    name: "PDU 1 Output 4"
+    on_turn_on:
+      then:
+        - globals.set:
+            id: Output4_last_status
+            value: '1'
+    on_turn_off:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(boot_done);'
+            then:
+            - globals.set:
+                id: Output4_last_status
+                value: '0'
+    restore_mode: DISABLED
+
+  - platform: gpio
+    pin: GPIO42
+    id: relay5
+    name: "PDU 1 Output 5"
+    on_turn_on:
+      then:
+        - globals.set:
+            id: Output5_last_status
+            value: '1'
+    on_turn_off:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(boot_done);'
+            then:
+            - globals.set:
+                id: Output5_last_status
+                value: '0'
+    restore_mode: DISABLED
+
+  - platform: gpio
+    pin: GPIO41
+    id: relay6
+    name: "PDU 1 Output 6"
+    on_turn_on:
+      then:
+        - globals.set:
+            id: Output6_last_status
+            value: '1'
+    on_turn_off:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(boot_done);'
+            then:
+            - globals.set:
+                id: Output6_last_status
+                value: '0'
+    restore_mode: DISABLED
+
+  - platform: gpio
+    pin: GPIO40
+    id: relay7
+    name: "PDU 1 Output 7"
+    on_turn_on:
+      then:
+        - globals.set:
+            id: Output7_last_status
+            value: '1'
+    on_turn_off:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(boot_done);'
+            then:
+            - globals.set:
+                id: Output7_last_status
+                value: '0'
+    restore_mode: DISABLED
+
+  - platform: gpio
+    pin: GPIO39
+    id: relay8
+    name: "PDU 1 Output 8"
+    on_turn_on:
+      then:
+        - globals.set:
+            id: Output8_last_status
+            value: '1'
+    on_turn_off:
+      then:
+        - if:
+            condition:
+              lambda: 'return id(boot_done);'
+            then:
+            - globals.set:
+                id: Output8_last_status
+                value: '0'
+    restore_mode: DISABLED
