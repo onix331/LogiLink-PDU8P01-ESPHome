@@ -14,6 +14,14 @@ This repo includes:
 &nbsp;
 &nbsp;
 
+The config includes things like:
+- Measuring power/current/voltage
+- Saving the states of the outputs in case of a power failure and turning them on in a staggered manner
+- Ethernet setup for my specific board
+- Connection to homeassistant
+
+&nbsp;
+
 I ended up using the Waveshare ESP32 S3 ETH (can be found here https://www.waveshare.com/esp32-s3-eth.htm) for the ESPHome board after a recommendation from a friend.
 
 The reasoning was that it has enough GPIO pins despite also having an Ethernet board attached and supports PoE (which i did not use in my case since the PDU is always powered anyway).
